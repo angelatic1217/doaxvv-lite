@@ -1,6 +1,7 @@
 // Phone-first entry pages (docs/ONLINE_LITE.md §三, 8.1): gacha records and resource snapshots.
 // Every save writes one inbox file and needs a connection; nothing is queued on the device.
 import { DATA_FILES, SourceError, loadConfig, loadInbox, loadSnapshot, makeSource, saveConfig } from './data.js';
+import { renderCatalog, renderTimeline, resetBrowse, setup as setupBrowse } from './browse.js';
 import {
     buildModel, checkCounts, girlsInOrder, inboxFileName, makeOp, openRecordFor, poolsOn, previewStep, searchSuits, suitsOfGirl,
     today, undoableStep,
@@ -53,6 +54,7 @@ async function load() {
         app.snap = await loadSnapshot(app.source);
         app.inbox = await loadInbox(app.source);
         app.model = buildModel(app.snap, app.inbox);
+        resetBrowse();
     } catch (e) {
         app.error = e;
     }
@@ -127,12 +129,15 @@ function render() {
     const hash = location.hash || '#/';
     renderSide();
     document.querySelectorAll('.tabbar a').forEach(a => a.classList.toggle('on', hash === a.getAttribute('href') ||
-        (a.getAttribute('href') === '#/' && hash.startsWith('#/rec'))));
+        (a.getAttribute('href') === '#/' && (hash.startsWith('#/rec') || hash === '#/new'))));
+    document.getElementById('sheet').hidden = true;
     if (hash === '#/settings') return renderSettings();
     if (app.error) return renderError(app.error);
     if (!app.model) return;
     if (hash === '#/new') return renderNew();
     if (hash === '#/assets') return renderAssets();
+    if (hash === '#/timeline') return renderTimeline();
+    if (hash === '#/catalog') return renderCatalog();
     if (hash.startsWith('#/rec/')) return renderRecord(decodeURIComponent(hash.slice(6)));
     return renderHome();
 }
@@ -594,6 +599,18 @@ function renderSettings() {
         renderSettings();
     };
 }
+
+// 時間軸「開始記錄這池」: the new-record page with that pool picked (or its open record).
+function startRecordFor(newsKey) {
+    const open = openRecordFor(app.model, newsKey);
+    if (open) { location.hash = `#/rec/${encodeURIComponent(open.uid)}`; return; }
+    renderNew.day = today();
+    renderNew.choice = newsKey;
+    renderNew.manual = '';
+    location.hash = '#/new';
+}
+
+setupBrowse({ app, view, esc, imgHtml, avatarHtml, startRecordFor, hasOpenRecord: k => Boolean(openRecordFor(app.model, k)) });
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});

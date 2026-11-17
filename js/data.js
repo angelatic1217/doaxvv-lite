@@ -139,6 +139,13 @@ export async function loadSnapshot(source) {
     return { manifest, ...files };
 }
 
+// A snapshot file loaded on demand (timeline index / years), cached by its sha256 like the others.
+export async function loadExtra(source, manifest, name) {
+    const info = manifest.files?.[name];
+    if (!info) throw new SourceError(`快照沒有 ${name}（請在本機同步一次）`, 'missing');
+    return cached(source, name, info.sha256);
+}
+
 export async function loadInbox(source) {
     const entries = await source.listInbox();
     return Promise.all(entries.map(async e => ({ ...e, data: await source.readInbox(e) })));

@@ -1,6 +1,6 @@
 // Caches the site shell only (docs/ONLINE_LITE.md 8.6); data always comes from the data repo.
-const SHELL = 'lite-shell-v6';
-const FILES = ['./', 'index.html', 'app.css', 'js/main.js', 'js/data.js', 'js/model.js', 'manifest.webmanifest', 'icon.svg'];
+const SHELL = 'lite-shell-v7';
+const FILES = ['./', 'index.html', 'app.css', 'js/main.js', 'js/data.js', 'js/model.js', 'js/browse.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

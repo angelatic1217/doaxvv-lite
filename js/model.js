@@ -97,6 +97,8 @@ export function buildModel(snap, inbox) {
     const suits = new Map((snap.catalog.swimsuits || []).map(s => [s.id, s]));
     const pools = new Map((snap.ledger.pools || []).map(p => [p.news_key, p]));
     const owned = new Set(snap.owned.owned || []);
+    const awakened = new Set(snap.owned.awakened || []);
+    const wish = new Set(snap.owned.wish || []);
     const records = new Map();
     for (const r of snap.ledger.records || []) {
         records.set(r.uid, {
@@ -140,7 +142,7 @@ export function buildModel(snap, inbox) {
     }
     const list = [...records.values()].sort((a, b) =>
         (b.date || '').localeCompare(a.date || '') || (b.created_at || '').localeCompare(a.created_at || ''));
-    return { girls, suits, pools, owned, records, list, assets, orphans, latest: latestResources(records, assets) };
+    return { girls, suits, pools, owned, awakened, wish, records, list, assets, orphans, latest: latestResources(records, assets) };
 }
 
 // Newest resources: manual / pull snapshots and steps typed in on the phone (white from the newest snapshot).
@@ -201,4 +203,56 @@ export function suitsOfGirl(model, girlId) {
 export function checkCounts(values) {
     for (const v of values) if (!Number.isInteger(v) || v < 0) return '鑽石與紅票必須是 0 以上的整數';
     return '';
+}
+
+// ---------------------------------------------------------------- read-only pages (8.13)
+export const EVENT_KINDS = ['event', 'anniversary', 'birthdayfes'];
+const POOL_FILTERS = { free: ['free', 'mixed'], paid: ['paid', 'mixed'] };
+
+const suitIds = item => item.pools.flatMap(p => p.suits.filter(s => typeof s === 'number'));
+const suitGirls = (item, model) => item.pools.flatMap(p => p.suits.map(s =>
+    typeof s === 'number' ? model.suits.get(s)?.girl_id : s.g)).filter(Boolean);
+
+// Timeline posts as the local 時間序 filters them: types (轉蛋 / 活動), pool (gachas only), tags, girl, text.
+export function filterTimeline(items, opts, model) {
+    const q = (opts.q || '').trim().toLowerCase();
+    return items.filter(item => {
+        const isGacha = item.kind === 'gacha';
+        if (opts.tags?.length) {
+            if (isGacha || !opts.tags.every(t => item.tags.includes(t))) return false;
+        } else {
+            if (isGacha && !opts.gacha) return false;
+            if (EVENT_KINDS.includes(item.kind) && !opts.event) return false;
+            if (!isGacha && !EVENT_KINDS.includes(item.kind)) return false;
+        }
+        if (isGacha && opts.pool && POOL_FILTERS[opts.pool] && !POOL_FILTERS[opts.pool].includes(item.pool)) return false;
+        if (opts.girl && !suitGirls(item, model).includes(opts.girl)) return false;
+        if (q) {
+            const names = item.pools.flatMap(p => p.suits.map(s => typeof s === 'number' ? model.suits.get(s)?.name || '' : s.n));
+            if (!`${item.title} ${names.join(' ')}`.toLowerCase().includes(q)) return false;
+        }
+        return true;
+    });
+}
+
+export function timelineSuitIds(item) { return suitIds(item); }
+
+// Catalog: girl, status, Steam release, text; newest first (Steam date, then JP date).
+export function filterCatalog(model, opts) {
+    const q = (opts.q || '').trim().toLowerCase();
+    const key = s => s.steam ? `1${s.steam}` : `0${s.dmm || ''}`;
+    return [...model.suits.values()].filter(s => {
+        if (opts.girl && s.girl_id !== opts.girl) return false;
+        if (opts.status === 'owned' && !model.owned.has(s.id)) return false;
+        if (opts.status === 'not' && model.owned.has(s.id)) return false;
+        if (opts.status === 'wish' && (!model.wish.has(s.id) || model.owned.has(s.id))) return false;
+        if (opts.status === 'awakened' && !(model.owned.has(s.id) && model.awakened.has(s.id))) return false;
+        if (opts.steam === 'steam' && !s.steam) return false;
+        if (opts.steam === 'notsteam' && s.steam) return false;
+        if (q) {
+            const girl = model.girls.get(s.girl_id);
+            if (!`${s.name} ${s.name_jp} ${girl?.name || ''} ${girl?.name_jp || ''}`.toLowerCase().includes(q)) return false;
+        }
+        return true;
+    }).sort((a, b) => key(b).localeCompare(key(a)) || b.id - a.id);
 }
