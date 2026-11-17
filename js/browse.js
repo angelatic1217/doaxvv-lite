@@ -10,7 +10,7 @@ const KIND_LABEL = { gacha: '轉蛋', event: '活動', anniversary: '週年', bi
 const POOL_LABEL = { free: '無償', paid: '有償', mixed: '無償／有償' };
 const PAGE = 60;
 
-const tl = { server: 'steam', gacha: true, event: false, pool: 'free', tags: [], girl: null, q: '', years: {}, loaded: [],
+const tl = { only: '', server: 'steam', gacha: true, event: false, pool: 'free', tags: [], girl: null, q: '', years: {}, loaded: [],
              shown: PAGE, pickGirl: false };
 const cat = { girl: null, status: 'all', steam: 'steam', q: '', shown: PAGE, pickGirl: false };   // local 圖鑑 default: on Steam
 let index = null;
@@ -97,7 +97,7 @@ export async function renderTimeline() {
         return;
     }
     const items = tl.loaded.flatMap(y => tl.years[`${tl.server}-${y}`]);
-    const found = filterTimeline(items, tl, ctx.app.model);
+    const found = tl.only ? items.filter(i => i.k === tl.only) : filterTimeline(items, tl, ctx.app.model);
     const more = years.length > tl.loaded.length;
     const tagPills = Object.entries(index.tags).filter(([, t]) => t.level === 'major')
         .map(([code, t]) => pill(t.label, tl.tags.includes(code), 'tl-tag', code)).join('');
@@ -112,6 +112,7 @@ export async function renderTimeline() {
             <input id="tl-q" type="search" placeholder="搜尋公告標題或泳裝名稱" value="${esc(tl.q)}">
         </div>
         ${!tl.gacha && !tl.event && !tl.tags.length ? '<p class="muted">請至少開啟轉蛋或活動其中一種。</p>' : ''}
+        ${tl.only ? '<p><button type="button" class="pill on" data-act="tl-all">只看這則公告 ✕ 顯示全部</button></p>' : ''}
         <p class="muted small">${tl.tags.length ? '選了標籤時只列活動公告。' : ''}共 ${found.length} 則（已載入 ${tl.loaded.length ? `${tl.loaded[tl.loaded.length - 1]}～${tl.loaded[0]}` : '—'} 年）</p>
         <div class="posts">${found.slice(0, tl.shown).map(postCard).join('') || '<p class="muted">沒有符合的公告。</p>'}</div>
         ${found.length > tl.shown ? '<button type="button" class="btn block" data-act="tl-more">顯示更多</button>'
@@ -125,13 +126,14 @@ function bindTimeline() {
     view.querySelectorAll('[data-act]').forEach(el => el.onclick = async () => {
         const v = el.dataset.value;
         switch (el.dataset.act) {
-        case 'tl-server': tl.server = v; tl.loaded = []; return rerender();
+        case 'tl-server': tl.server = v; tl.loaded = []; tl.only = ''; return rerender();
         case 'tl-kind': tl[v] = !tl[v]; return rerender();
         case 'tl-pool': tl.pool = tl.pool === v ? '' : v; return rerender();
         case 'tl-tag': tl.tags = tl.tags.includes(v) ? tl.tags.filter(t => t !== v) : [...tl.tags, v]; return rerender();
         case 'tl-girls': tl.pickGirl = !tl.pickGirl; return renderTimeline();
         case 'tl-girl-clear': tl.girl = null; return rerender();
         case 'tl-more': tl.shown += PAGE; return renderTimeline();
+        case 'tl-all': tl.only = ''; return rerender();
         case 'tl-older': await ensureYears(false); return renderTimeline();
         case 'record': ctx.startRecordFor(v); return null;
         default: return null;
@@ -232,6 +234,22 @@ async function openSuit(id) {
     } catch (e) {
         document.getElementById('sheet-appear').textContent = e.message;
     }
+}
+
+// 未來視 → one post in the timeline (its server and year are loaded first).
+export async function showPost(newsKey) {
+    try {
+        const ix = await timelineIndex();
+        const post = ix.posts.find(p => p[4] === newsKey);
+        if (!post) { ctx.view.scrollTo?.(0, 0); return; }
+        const [server, date] = post;
+        const key = `${server}-${date.slice(0, 4)}`;
+        if (!tl.years[key]) tl.years[key] = (await loadExtra(ctx.app.source, ctx.app.snap.manifest, `timeline-${key}.json`)).items;
+        tl.server = server;
+        tl.only = newsKey;
+        tl.shown = PAGE;
+        if (location.hash === '#/timeline') renderTimeline(); else location.hash = '#/timeline';
+    } catch { /* stays on the current page */ }
 }
 
 export { EVENT_KINDS };

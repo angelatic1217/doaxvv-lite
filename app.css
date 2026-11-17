@@ -161,6 +161,27 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .appear { padding-left: 0; list-style: none; margin: 0; }
 .appear li { padding: 4px 0; border-bottom: 1px solid var(--line); color: var(--text); }
 
+/* 未來視 (8.14) */
+.link { background: none; border: 0; padding: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.link.title { font-weight: 600; display: block; margin: 4px 0 2px; }
+.ok { color: #2f9e44; } .bad { color: var(--danger); }
+.next-wish { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; margin: 10px 0; border-radius: 12px;
+             border: 1px solid var(--line); background: var(--card); color: var(--text); }
+.next-wish.short { border: 0; padding: 8px 0 0; margin: 8px 0 0; background: none; font-size: .85rem; border-top: 1px solid var(--line); border-radius: 0; }
+.fv-summary div { margin: 2px 0; }
+.fv-card.neg { border-color: var(--danger); }
+.fv-bottom { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.fv-posts { list-style: none; padding: 0; margin: 6px 0; }
+.fv-posts li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.fv-posts li.rerun .link { opacity: .7; }
+.fv-posts .link { color: var(--accent); }
+.cap { display: inline-flex; align-items: center; gap: 4px; }
+.cap input { width: 96px; min-height: 36px; padding: 4px 8px; }
+.cap.cap-set input { border-color: #f59f00; box-shadow: 0 0 0 1px #f59f00; }
+.cap.cap-pending input { border-style: dashed; }
+.fv-table td { vertical-align: top; }
+.fv-table tr.neg td:nth-last-child(2) { color: var(--danger); }
+
 /* record page order on narrow screens: info, swimsuits, form, undo */
 .rec-grid { display: flex; flex-direction: column; }
 .rec-left { display: contents; }
@@ -201,6 +222,10 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
     .girl-suits { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px;
                   max-height: none; overflow: visible; border-top: 0; padding: 4px 0; }
     .pick-suit:hover { border-color: var(--accent); }
+
+    /* 未來視 */
+    .fv-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; align-items: start; }
+    .fv-cards .card { margin: 0; }
 
     /* read-only pages */
     .posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; }

@@ -109,6 +109,7 @@ export function buildModel(snap, inbox) {
     }
     const assets = (snap.ledger.assets || []).map(a => ({ ...a, pending: false }));
     const orphans = [];
+    const futureCaps = new Map();   // 未來視 caps changed on this phone, not imported yet (8.14)
     const known = new Set([...records.values()].flatMap(r => r.steps.map(s => s.uid)));
     for (const a of assets) known.add(a.uid);
 
@@ -127,6 +128,8 @@ export function buildModel(snap, inbox) {
             if (!rec) { orphans.push(file); continue; }
             rec.steps.push(normalizeStep(op, { pending: true, file: file.name }));
             if (op.kind === 'end') rec.status = 'closed';
+        } else if (op.op === 'future_cap') {
+            futureCaps.set(op.key, { pulls: op.pulls ?? null, file: file.name, at: op.created_at });
         } else if (op.op === 'assets') {
             assets.push({ uid: op.uid, at: op.created_at, source: 'manual', free: op.free || 0, paid: op.paid || 0,
                           red: op.red || 0, white: null, notes: op.notes || '', pending: true, file: file.name });
@@ -142,7 +145,8 @@ export function buildModel(snap, inbox) {
     }
     const list = [...records.values()].sort((a, b) =>
         (b.date || '').localeCompare(a.date || '') || (b.created_at || '').localeCompare(a.created_at || ''));
-    return { girls, suits, pools, owned, awakened, wish, records, list, assets, orphans, latest: latestResources(records, assets) };
+    return { girls, suits, pools, owned, awakened, wish, records, list, assets, orphans, futureCaps,
+             latest: latestResources(records, assets) };
 }
 
 // Newest resources: manual / pull snapshots and steps typed in on the phone (white from the newest snapshot).
@@ -255,4 +259,73 @@ export function filterCatalog(model, opts) {
         }
         return true;
     }).sort((a, b) => key(b).localeCompare(key(a)) || b.id - a.id);
+}
+
+// ---------------------------------------------------------------- 未來視 (8.14)
+const pullsOf = (stones, red, per) => Math.trunc(stones / per) + Math.floor(red);
+const round1 = x => Math.round(x * 10) / 10;
+
+// The budget roll of ledger.future.simulate: income every N counted periods, red tickets first, then stones;
+// overspending carries a negative balance. Returns one result per period; the periods are not changed.
+export function simulateFuture(periods, start, income, caps, per) {
+    let stones = Number(start.free) || 0;
+    let red = Number(start.red) || 0;
+    let counted = 0;
+    return periods.map(p => {
+        let got = null;
+        if (p.counts_income) {
+            counted += 1;
+            if (counted % income.every === 0) {
+                got = { stones: income.stones, red: income.red };
+                stones += income.stones;
+                red += income.red;
+            }
+        }
+        const def = p.cap_default ?? 0;
+        const cap = caps.has(p.key) ? caps.get(p.key) : def;
+        const startState = { stones: Math.round(stones), red: round1(red), pulls: pullsOf(stones, red, per) };
+        const useRed = Math.min(Math.max(Math.floor(red), 0), cap);
+        red -= useRed;
+        stones -= (cap - useRed) * per;
+        return { key: p.key, cap, cap_default: def, cap_set: caps.has(p.key), income: got, start: startState,
+                 end: { stones: Math.round(stones), red: round1(red), pulls: pullsOf(stones, red, per) } };
+    });
+}
+
+// Caps in force: the snapshot's saved caps, then this phone's pending edits (null = back to the default).
+export function futureCapMap(future, model) {
+    const caps = new Map();
+    for (const p of future.periods) if (p.cap_set) caps.set(p.key, p.cap);
+    for (const [key, edit] of model.futureCaps) {
+        if (edit.pulls === null) caps.delete(key); else caps.set(key, edit.pulls);
+    }
+    return caps;
+}
+
+export function futureView(future, model) {
+    const results = simulateFuture(future.periods, { free: model.latest.free, red: model.latest.red }, future.income,
+                                   futureCapMap(future, model), future.stones_per_pull);
+    const periods = future.periods.map((p, i) => ({ ...p, ...results[i], pending: model.futureCaps.has(p.key) }));
+    const next = periods.find(p => (p.status === 'future' || p.status === 'overdue') && p.ref.wish_count);
+    return { periods, next };
+}
+
+// 本機 8.11, as static/modules/ledger/future.js: a post is in a track when it has pools of it (a post without
+// parsed pools goes with the free ones); the week's new free gacha comes first; 只看有願望或有投入 keeps ongoing ones.
+export function inTrack(g, track) {
+    return track === 'all' || g.tracks[track]?.pool_count > 0 || (track === 'free' && g.no_pools);
+}
+export const isRerun = g => g.rerun && !(g.new_free > 0);
+export const postsOf = (p, track) => p.gachas.filter(g => inTrack(g, track)).sort((a, b) => (b.new_free > 0) - (a.new_free > 0));
+
+export function filterFuture(periods, track, onlyWanted) {
+    let list = periods;
+    if (track !== 'all') list = list.filter(p => p.status === 'ongoing' || !p.gachas.length || postsOf(p, track).length);
+    if (!onlyWanted) return list;
+    return list.filter(p => {
+        if (p.status === 'ongoing') return true;
+        const free = p.ref.wish_count > 0 || p.cap > 0;
+        const paid = p.ref_paid.wish_count > 0;
+        return track === 'free' ? free : track === 'paid' ? paid : (free || paid);
+    });
 }

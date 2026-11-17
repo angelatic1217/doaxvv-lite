@@ -1,7 +1,8 @@
 // Phone-first entry pages (docs/ONLINE_LITE.md §三, 8.1): gacha records and resource snapshots.
 // Every save writes one inbox file and needs a connection; nothing is queued on the device.
-import { DATA_FILES, SourceError, loadConfig, loadInbox, loadSnapshot, makeSource, saveConfig } from './data.js';
-import { renderCatalog, renderTimeline, resetBrowse, setup as setupBrowse } from './browse.js';
+import { DATA_FILES, SourceError, loadConfig, loadExtra, loadInbox, loadSnapshot, makeSource, saveConfig } from './data.js';
+import { renderCatalog, renderTimeline, resetBrowse, setup as setupBrowse, showPost } from './browse.js';
+import { nextWishHtml, renderFuture, setup as setupFuture } from './future.js';
 import {
     buildModel, checkCounts, girlsInOrder, inboxFileName, makeOp, openRecordFor, poolsOn, previewStep, searchSuits, suitsOfGirl,
     today, undoableStep,
@@ -54,6 +55,8 @@ async function load() {
         app.snap = await loadSnapshot(app.source);
         app.inbox = await loadInbox(app.source);
         app.model = buildModel(app.snap, app.inbox);
+        // 未來視 (snapshot 1.3); an older snapshot simply has none
+        app.future = app.snap.manifest.files?.['future.json'] ? await loadExtra(app.source, app.snap.manifest, 'future.json') : null;
         resetBrowse();
     } catch (e) {
         app.error = e;
@@ -121,6 +124,8 @@ function renderSide() {
         <div class="side-stat"><span>紅票</span><b>${fmt(m.latest.red)}</b></div>
         <div class="side-stat"><span>白票</span><b>${fmt(m.latest.white)}</b></div>
         <div class="muted small">${m.latest.at ? `更新於 ${esc(m.latest.at.slice(0, 16))}` : ''}</div>
+        <a class="small" href="#/assets">填資源快照</a>
+        ${nextWishHtml(true)}
         <div class="side-foot muted small">快照 ${esc(app.snap.manifest.exported_at?.replace('T', ' ').slice(0, 16))}<br>
             未匯入 ${app.inbox.length} 個檔案<br>${esc(app.source.label)}</div>`;
 }
@@ -129,7 +134,8 @@ function render() {
     const hash = location.hash || '#/';
     renderSide();
     document.querySelectorAll('.tabbar a').forEach(a => a.classList.toggle('on', hash === a.getAttribute('href') ||
-        (a.getAttribute('href') === '#/' && (hash.startsWith('#/rec') || hash === '#/new'))));
+        (a.getAttribute('href') === '#/' && (hash.startsWith('#/rec') || hash === '#/new' || hash === '#/assets')) ||
+        (a.getAttribute('href') === '#/future' && hash.startsWith('#/future/'))));
     document.getElementById('sheet').hidden = true;
     if (hash === '#/settings') return renderSettings();
     if (app.error) return renderError(app.error);
@@ -137,6 +143,8 @@ function render() {
     if (hash === '#/new') return renderNew();
     if (hash === '#/assets') return renderAssets();
     if (hash === '#/timeline') return renderTimeline();
+    if (hash === '#/future') return renderFuture();
+    if (hash.startsWith('#/future/')) return renderFuture(decodeURIComponent(hash.slice(9)));
     if (hash === '#/catalog') return renderCatalog();
     if (hash.startsWith('#/rec/')) return renderRecord(decodeURIComponent(hash.slice(6)));
     return renderHome();
@@ -194,6 +202,7 @@ function renderHome() {
             </div>
             <p class="muted small">${m.latest.at ? `更新於 ${esc(m.latest.at.slice(0, 16))}` : '尚無資料'}</p>
         </section>
+        ${nextWishHtml()}
         <a class="btn primary block" href="#/new">＋ 新增抽卡紀錄</a>
         ${open.length ? `<h3>記錄中</h3>${open.map(recordRow).join('')}` : ''}
         ${m.orphans.length ? `<p class="warn-box">有 ${m.orphans.length} 個步驟找不到所屬紀錄（${m.orphans.map(o => esc(o.name)).join('、')}），回本機匯入時會列出。</p>` : ''}
@@ -611,6 +620,7 @@ function startRecordFor(newsKey) {
 }
 
 setupBrowse({ app, view, esc, imgHtml, avatarHtml, startRecordFor, hasOpenRecord: k => Boolean(openRecordFor(app.model, k)) });
+setupFuture({ app, view, esc, imgHtml, toast, writeOp, showPost });
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
