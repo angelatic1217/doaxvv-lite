@@ -327,9 +327,10 @@ function girlPickerHtml(inPool = new Set()) {
         <div class="girl-suits">${suits.map(s => {
             const added = draft.extras.some(x => x.swimsuit_id === s.id);
             const note = inPool.has(s.id) ? '・在池中，點了數量 +1' : added ? '・已加入' : '';
-            return `<button type="button" class="pick ${added ? 'added' : ''}" data-id="${s.id}">
-                <span>${esc(s.name)}${app.model.owned.has(s.id) ? ' <span class="badge">已持有</span>' : ''}</span>
-                <span class="muted small">${esc(s.steam || (s.dmm ? `日版 ${s.dmm}` : ''))}${note}</span></button>`;
+            return `<button type="button" class="pick pick-suit ${added ? 'added' : ''}" data-id="${s.id}">
+                <span class="pick-thumb">${imgHtml(s)}</span>
+                <span class="pick-text"><span>${esc(s.name)}${app.model.owned.has(s.id) ? ' <span class="badge">已持有</span>' : ''}</span>
+                <span class="muted small">${esc(s.steam || (s.dmm ? `日版 ${s.dmm}` : ''))}${note}</span></span></button>`;
         }).join('') || '<p class="muted">沒有泳裝資料</p>'}</div>`;
 }
 

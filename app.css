@@ -122,3 +122,8 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .girl-head { margin: 8px 0; }
 .girl-suits { max-height: 50vh; overflow-y: auto; border-top: 1px solid var(--line); margin-bottom: 8px; }
 .pick.added { opacity: .55; }
+.pick-suit { justify-content: flex-start; align-items: center; gap: 10px; }
+.pick-thumb { flex: none; width: 96px; }
+.pick-thumb .thumb { border-radius: 6px; }
+.pick-thumb .thumb.noimg { font-size: 1.1rem; }
+.pick-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
