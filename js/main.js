@@ -122,7 +122,6 @@ function renderSide() {
         <div class="side-stat"><span>免費石</span><b>${fmt(m.latest.free)}</b></div>
         <div class="side-stat"><span>有償石</span><b>${fmt(m.latest.paid)}</b></div>
         <div class="side-stat"><span>紅票</span><b>${fmt(m.latest.red)}</b></div>
-        <div class="side-stat"><span>白票</span><b>${fmt(m.latest.white)}</b></div>
         <div class="muted small">${m.latest.at ? `更新於 ${esc(m.latest.at.slice(0, 16))}` : ''}</div>
         <a class="small" href="#/assets">填資源快照</a>
         ${nextWishHtml(true)}
@@ -198,7 +197,6 @@ function renderHome() {
                 <div><b>${fmt(m.latest.free)}</b><span>免費石</span></div>
                 <div><b>${fmt(m.latest.paid)}</b><span>有償石</span></div>
                 <div><b>${fmt(m.latest.red)}</b><span>紅票</span></div>
-                <div><b>${fmt(m.latest.white)}</b><span>白票</span></div>
             </div>
             <p class="muted small">${m.latest.at ? `更新於 ${esc(m.latest.at.slice(0, 16))}` : '尚無資料'}</p>
         </section>
@@ -548,7 +546,6 @@ function renderAssets() {
     const rows = m.assets.filter(a => a.source === 'manual' || a.source === 'pull').slice(-10).reverse();
     view.innerHTML = `
         <h2>資源快照</h2>
-        <p class="muted small">白票沿用最新一筆，要改請回本機。</p>
         <div class="nums">${numInput('as-free', '免費石', m.latest.free)}${numInput('as-paid', '有償石', m.latest.paid)}${numInput('as-red', '紅票', m.latest.red)}</div>
         <label class="field"><span>備註</span><input id="as-notes" type="text" maxlength="120"></label>
         <button class="btn primary block" data-save id="btn-assets">儲存快照</button>
