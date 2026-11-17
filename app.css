@@ -127,3 +127,43 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .pick-thumb .thumb { border-radius: 6px; }
 .pick-thumb .thumb.noimg { font-size: 1.1rem; }
 .pick-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* ---------------- wide screens (computer / tablet browser) ---------------- */
+@media (min-width: 760px) {
+    body { padding-bottom: 24px; }
+    main { max-width: 1180px; padding: 16px 24px; }
+    /* tab bar moves into the top bar */
+    .topbar { padding-right: 24px; }
+    .tabbar {
+        top: 0; bottom: auto; left: 50%; right: auto; transform: translateX(-50%);
+        background: transparent; border: 0; padding: 0; height: 49px; align-items: stretch;
+    }
+    .tabbar a { flex: none; padding: 12px 22px; }
+    .tabbar a.on { box-shadow: inset 0 -3px 0 var(--accent); }
+    .toast { left: auto; right: 24px; bottom: 24px; max-width: 420px; }
+
+    /* home: resources + open records on the left, recent records in a grid */
+    .home-grid { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; gap: 24px; align-items: start; }
+    .home-side { position: sticky; top: 64px; }
+    .rec-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+    .rec-list .card { margin: 0; }
+
+    /* new record: pools side by side */
+    .pools { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+    .pools .card { margin: 0; }
+
+    /* record: info and form on the left, swimsuits on the right */
+    .rec-grid.is-open { display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 0 28px;
+                        grid-template-areas: "info suits" "form suits" "undo suits"; grid-template-rows: auto auto 1fr; align-items: start; }
+    .rec-grid.is-open .rec-info { grid-area: info; }
+    .rec-grid.is-open .rec-suits { grid-area: suits; }
+    .rec-grid.is-open .rec-form { grid-area: form; }
+    .rec-grid.is-open .rec-undo { grid-area: undo; }
+    .rec-grid.is-open .rec-form, .rec-grid.is-open .rec-undo { position: relative; }
+    .suits { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+    .girls { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+    .girl-suits { max-height: 60vh; }
+
+    /* assets / settings stay a readable width */
+    #view > h2 ~ .nums, #view > h2 ~ .field, #view > .card, #view > .btn.block { max-width: 640px; }
+}

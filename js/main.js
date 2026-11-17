@@ -159,6 +159,8 @@ function renderHome() {
     const recent = m.list.filter(r => r.status !== 'open').slice(0, 15);
     const pendingCount = app.inbox.length;
     view.innerHTML = `
+        <div class="home-grid">
+        <div class="home-side">
         <section class="card">
             <div class="row between"><h2>現有資源</h2><a class="btn small" href="#/assets">填資源快照</a></div>
             <div class="stats">
@@ -172,8 +174,12 @@ function renderHome() {
         <a class="btn primary block" href="#/new">＋ 新增抽卡紀錄</a>
         ${open.length ? `<h3>記錄中</h3>${open.map(recordRow).join('')}` : ''}
         ${m.orphans.length ? `<p class="warn-box">有 ${m.orphans.length} 個步驟找不到所屬紀錄（${m.orphans.map(o => esc(o.name)).join('、')}），回本機匯入時會列出。</p>` : ''}
+        </div>
+        <div class="home-main">
         <h3>最近紀錄</h3>
-        ${recent.map(recordRow).join('') || '<p class="muted">尚無紀錄</p>'}
+        <div class="rec-list">${recent.map(recordRow).join('') || '<p class="muted">尚無紀錄</p>'}</div>
+        </div>
+        </div>
         <p class="muted small center">快照 ${esc(app.snap.manifest.exported_at?.replace('T', ' ').slice(0, 16))}・未匯入 ${pendingCount} 個檔案・${esc(app.source.label)}</p>`;
 }
 
@@ -214,8 +220,8 @@ function renderNew() {
         <h2>新增抽卡紀錄</h2>
         <label class="field"><span>日期</span><input id="new-date" type="date" value="${esc(day)}"></label>
         <h3>選卡池</h3>
-        ${pools.map(poolCard).join('') || '<p class="muted">快照中沒有這天開放的卡池。</p>'}
-        ${later.length ? `<details><summary class="muted small">之後才開始的卡池（${later.length}）</summary>${later.map(poolCard).join('')}</details>` : ''}
+        <div class="pools">${pools.map(poolCard).join('') || '<p class="muted">快照中沒有這天開放的卡池。</p>'}</div>
+        ${later.length ? `<details><summary class="muted small">之後才開始的卡池（${later.length}）</summary><div class="pools">${later.map(poolCard).join('')}</div></details>` : ''}
         <div class="card ${choice === '__manual' ? 'on' : ''}">
             <label class="field"><span>快照沒有的卡池：手填池名</span>
             <input id="new-manual" type="text" maxlength="80" placeholder="例：夜曲穿搭抽卡" value="${esc(renderNew.manual || '')}"></label>
@@ -354,7 +360,8 @@ function renderRecord(uid) {
     const last = r.steps.length ? r.steps[r.steps.length - 1] : r.start;
     const undo = undoableStep(r);
     const items = r.status === 'open' ? poolItems(r) : [];
-    view.innerHTML = `
+    view.innerHTML = `<div class="rec-grid ${r.status === 'open' ? 'is-open' : ''}">
+        <div class="rec-info">
         <a class="muted small" href="#/">← 首頁</a>
         <h2>${esc(r.banner || '（未命名卡池）')}</h2>
         <div class="row">${badges(r)}<span class="muted small">${esc(r.date)}</span></div>
@@ -362,7 +369,9 @@ function renderRecord(uid) {
         ${r.status === 'imported' || r.status === 'legacy'
             ? `<p class="muted">${r.status === 'imported' ? '試算表匯入的摘要紀錄' : '舊紀錄'}。${hitNames(r) ? `抽到：${esc(hitNames(r))}` : ''}</p>`
             : stepsTable(r)}
+        </div>
         ${r.status === 'open' ? `
+        <div class="rec-suits">
         <h3>這次抽到</h3>
         <div class="suits">${items.map(suitCard).join('') || '<p class="muted">快照沒有這池的泳裝名單，請從下方加入。</p>'}</div>
         <details class="card" id="extra-box" ${draft.extrasOpen ? 'open' : ''}><summary>加入其他泳裝</summary>
@@ -372,6 +381,8 @@ function renderRecord(uid) {
             <div class="row"><input id="suit-free" type="text" maxlength="80" placeholder="圖鑑沒有：手打名稱">
             <button class="btn small" id="btn-free">加入</button></div>
         </details>
+        </div>
+        <div class="rec-form">
         <h3>當下資源</h3>
         <div class="nums">
             ${numInput('now-free', '免費石', draft.now?.free ?? last.free)}${numInput('now-paid', '有償石', draft.now?.paid ?? last.paid)}${numInput('now-red', '紅票', draft.now?.red ?? last.red)}
@@ -380,9 +391,12 @@ function renderRecord(uid) {
         <div class="row">
             <button class="btn primary grow" data-save id="btn-hit">儲存出貨</button>
             <button class="btn grow" data-save id="btn-end">結束這池</button>
+        </div>
         </div>` : ''}
+        <div class="rec-undo">
         ${undo ? `<button class="btn danger block" data-save id="btn-undo">撤銷最後一步（${undo.kind === 'end' ? '結束' : `第 ${undo.pull_no} 抽`}）</button>` : ''}
-        ${r.pending && !r.steps.length ? '<button class="btn danger block" data-save id="btn-drop">刪除這筆紀錄（尚未匯入）</button>' : ''}`;
+        ${r.pending && !r.steps.length ? '<button class="btn danger block" data-save id="btn-drop">刪除這筆紀錄（尚未匯入）</button>' : ''}
+        </div></div>`;
     if (r.status === 'open') bindRecorder(r, items);
     if (undo) document.getElementById('btn-undo').onclick = async () => {
         if (!confirm('撤銷最後一步？')) return;
