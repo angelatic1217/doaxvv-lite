@@ -10,7 +10,7 @@ import {
 
 const app = { cfg: loadConfig(), source: null, snap: null, inbox: [], model: null, error: null, busy: false };
 const view = document.getElementById('view');
-const draft = { key: '', counts: new Map(), extras: [], girl: null, extrasOpen: false, now: null };   // record page: picked swimsuits, kept across re-renders
+const draft = { key: '', counts: new Map(), extras: [], girl: null, type: '', extrasOpen: false, now: null };   // record page: picked swimsuits, kept across re-renders
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => (n || 0).toLocaleString();
@@ -350,16 +350,22 @@ function avatarHtml(girl) {
     return `<img class="avatar" alt="" src="${HEAD(girl.code)}" data-initial="${initial}">`;
 }
 
-// 「加入其他泳裝」: pick a girl by her avatar, then one of her swimsuits (newest first).
+// 「加入其他泳裝」: pick a girl by her avatar, then one of her swimsuits (newest first),
+// optionally narrowed to one main attribute (kept in the draft across girl switches).
+const SUIT_TYPES = ['POW', 'TEC', 'STM', 'APL'];
 function girlPickerHtml(inPool = new Set()) {
     const girl = draft.girl ? app.model.girls.get(draft.girl) : null;
     if (!girl) {
         return `<div class="girls">${girlsInOrder(app.model).map(g =>
             `<button type="button" class="girl" data-girl="${g.id}">${avatarHtml(g)}<span>${esc(g.name)}</span></button>`).join('')}</div>`;
     }
-    const suits = suitsOfGirl(app.model, girl.id);
-    return `<div class="row girl-head">${avatarHtml(girl)}<b class="grow">${esc(girl.name)}的泳裝（${suits.length}）</b>
+    const all = suitsOfGirl(app.model, girl.id);
+    const suits = draft.type ? all.filter(s => s.type === draft.type) : all;
+    const pills = [['', '全部'], ...SUIT_TYPES.map(t => [t, t])].map(([v, l]) =>
+        `<button type="button" class="pill ${draft.type === v ? 'on' : ''}" data-type="${v}">${l}</button>`).join('');
+    return `<div class="row girl-head">${avatarHtml(girl)}<b class="grow">${esc(girl.name)}的泳裝（${all.length}）</b>
             <button type="button" class="btn small" data-girl="">換角色</button></div>
+        <div class="row type-pills">${pills}</div>
         <div class="girl-suits">${suits.map(s => {
             const added = draft.extras.some(x => x.swimsuit_id === s.id);
             const note = inPool.has(s.id) ? '・在池中，點了數量 +1' : added ? '・已加入' : '';
@@ -367,7 +373,7 @@ function girlPickerHtml(inPool = new Set()) {
                 <span class="pick-thumb">${imgHtml(s)}</span>
                 <span class="pick-text"><span>${esc(s.name)}${app.model.owned.has(s.id) ? ' <span class="badge">已持有</span>' : ''}</span>
                 <span class="muted small">${esc(s.steam || (s.dmm ? `日版 ${s.dmm}` : ''))}${note}</span></span></button>`;
-        }).join('') || '<p class="muted">沒有泳裝資料</p>'}</div>`;
+        }).join('') || `<p class="muted">${all.length && draft.type ? `沒有 ${draft.type} 泳裝` : '沒有泳裝資料'}</p>`}</div>`;
 }
 
 // Avatar fallback: the girl's initial when doax.cc does not answer.
@@ -385,7 +391,7 @@ function renderRecord(uid) {
         return;
     }
     if (draft.key !== uid) {
-        Object.assign(draft, { key: uid, counts: new Map(), extras: [], girl: null, extrasOpen: false, now: null });
+        Object.assign(draft, { key: uid, counts: new Map(), extras: [], girl: null, type: '', extrasOpen: false, now: null });
     }
     const last = r.steps.length ? r.steps[r.steps.length - 1] : r.start;
     const undo = undoableStep(r);
@@ -481,6 +487,11 @@ function bindRecorder(r, items) {
         const box = document.getElementById('girl-picker');
         box.querySelectorAll('[data-girl]').forEach(b => b.onclick = () => {
             draft.girl = b.dataset.girl ? Number(b.dataset.girl) : null;
+            box.innerHTML = girlPickerHtml(inPool);
+            bindPicker();
+        });
+        box.querySelectorAll('[data-type]').forEach(b => b.onclick = () => {
+            draft.type = b.dataset.type;
             box.innerHTML = girlPickerHtml(inPool);
             bindPicker();
         });
