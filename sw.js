@@ -1,5 +1,5 @@
 // Caches the site shell only (docs/ONLINE_LITE.md 8.6); data always comes from the data repo.
-const SHELL = 'lite-shell-v4';
+const SHELL = 'lite-shell-v5';
 const FILES = ['./', 'index.html', 'app.css', 'js/main.js', 'js/data.js', 'js/model.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', e => {

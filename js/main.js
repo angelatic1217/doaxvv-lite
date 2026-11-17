@@ -106,8 +106,26 @@ function setButtonsDisabled(disabled) {
 }
 
 // ------------------------------------------------------------------ router
+// Desktop sidebar summary (hidden on narrow screens by CSS).
+function renderSide() {
+    const el = document.getElementById('side-info');
+    if (!el) return;
+    const m = app.model;
+    if (!m) { el.innerHTML = ''; return; }
+    el.innerHTML = `
+        <div class="side-title">現有資源</div>
+        <div class="side-stat"><span>免費石</span><b>${fmt(m.latest.free)}</b></div>
+        <div class="side-stat"><span>有償石</span><b>${fmt(m.latest.paid)}</b></div>
+        <div class="side-stat"><span>紅票</span><b>${fmt(m.latest.red)}</b></div>
+        <div class="side-stat"><span>白票</span><b>${fmt(m.latest.white)}</b></div>
+        <div class="muted small">${m.latest.at ? `更新於 ${esc(m.latest.at.slice(0, 16))}` : ''}</div>
+        <div class="side-foot muted small">快照 ${esc(app.snap.manifest.exported_at?.replace('T', ' ').slice(0, 16))}<br>
+            未匯入 ${app.inbox.length} 個檔案<br>${esc(app.source.label)}</div>`;
+}
+
 function render() {
     const hash = location.hash || '#/';
+    renderSide();
     document.querySelectorAll('.tabbar a').forEach(a => a.classList.toggle('on', hash === a.getAttribute('href') ||
         (a.getAttribute('href') === '#/' && hash.startsWith('#/rec'))));
     if (hash === '#/settings') return renderSettings();
@@ -161,7 +179,7 @@ function renderHome() {
     view.innerHTML = `
         <div class="home-grid">
         <div class="home-side">
-        <section class="card">
+        <section class="card home-res">
             <div class="row between"><h2>現有資源</h2><a class="btn small" href="#/assets">填資源快照</a></div>
             <div class="stats">
                 <div><b>${fmt(m.latest.free)}</b><span>免費石</span></div>
@@ -180,7 +198,7 @@ function renderHome() {
         <div class="rec-list">${recent.map(recordRow).join('') || '<p class="muted">尚無紀錄</p>'}</div>
         </div>
         </div>
-        <p class="muted small center">快照 ${esc(app.snap.manifest.exported_at?.replace('T', ' ').slice(0, 16))}・未匯入 ${pendingCount} 個檔案・${esc(app.source.label)}</p>`;
+        <p class="muted small center home-foot">快照 ${esc(app.snap.manifest.exported_at?.replace('T', ' ').slice(0, 16))}・未匯入 ${pendingCount} 個檔案・${esc(app.source.label)}</p>`;
 }
 
 function recordRow(r) {
@@ -360,17 +378,8 @@ function renderRecord(uid) {
     const last = r.steps.length ? r.steps[r.steps.length - 1] : r.start;
     const undo = undoableStep(r);
     const items = r.status === 'open' ? poolItems(r) : [];
-    view.innerHTML = `<div class="rec-grid ${r.status === 'open' ? 'is-open' : ''}">
-        <div class="rec-info">
-        <a class="muted small" href="#/">← 首頁</a>
-        <h2>${esc(r.banner || '（未命名卡池）')}</h2>
-        <div class="row">${badges(r)}<span class="muted small">${esc(r.date)}</span></div>
-        <p><b>${pullsText(r)}</b></p>
-        ${r.status === 'imported' || r.status === 'legacy'
-            ? `<p class="muted">${r.status === 'imported' ? '試算表匯入的摘要紀錄' : '舊紀錄'}。${hitNames(r) ? `抽到：${esc(hitNames(r))}` : ''}</p>`
-            : stepsTable(r)}
-        </div>
-        ${r.status === 'open' ? `
+    const open = r.status === 'open';
+    const suitsBlock = open ? `
         <div class="rec-suits">
         <h3>這次抽到</h3>
         <div class="suits">${items.map(suitCard).join('') || '<p class="muted">快照沒有這池的泳裝名單，請從下方加入。</p>'}</div>
@@ -381,7 +390,8 @@ function renderRecord(uid) {
             <div class="row"><input id="suit-free" type="text" maxlength="80" placeholder="圖鑑沒有：手打名稱">
             <button class="btn small" id="btn-free">加入</button></div>
         </details>
-        </div>
+        </div>` : '';
+    const formBlock = open ? `
         <div class="rec-form">
         <h3>當下資源</h3>
         <div class="nums">
@@ -392,11 +402,28 @@ function renderRecord(uid) {
             <button class="btn primary grow" data-save id="btn-hit">儲存出貨</button>
             <button class="btn grow" data-save id="btn-end">結束這池</button>
         </div>
-        </div>` : ''}
+        </div>` : '';
+    // Narrow screens: info, swimsuits, form, undo (rec-left is display: contents; CSS order).
+    // Wide screens: rec-left (info, form, undo) is a sticky column beside the swimsuits.
+    view.innerHTML = `<div class="rec-grid ${open ? 'is-open' : ''}">
+        <div class="rec-left">
+        <div class="rec-info">
+        <a class="muted small" href="#/">← 首頁</a>
+        <h2>${esc(r.banner || '（未命名卡池）')}</h2>
+        <div class="row">${badges(r)}<span class="muted small">${esc(r.date)}</span></div>
+        <p><b>${pullsText(r)}</b></p>
+        ${r.status === 'imported' || r.status === 'legacy'
+            ? `<p class="muted">${r.status === 'imported' ? '試算表匯入的摘要紀錄' : '舊紀錄'}。${hitNames(r) ? `抽到：${esc(hitNames(r))}` : ''}</p>`
+            : stepsTable(r)}
+        </div>
+        ${formBlock}
         <div class="rec-undo">
         ${undo ? `<button class="btn danger block" data-save id="btn-undo">撤銷最後一步（${undo.kind === 'end' ? '結束' : `第 ${undo.pull_no} 抽`}）</button>` : ''}
         ${r.pending && !r.steps.length ? '<button class="btn danger block" data-save id="btn-drop">刪除這筆紀錄（尚未匯入）</button>' : ''}
-        </div></div>`;
+        </div>
+        </div>
+        ${suitsBlock}
+        </div>`;
     if (r.status === 'open') bindRecorder(r, items);
     if (undo) document.getElementById('btn-undo').onclick = async () => {
         if (!confirm('撤銷最後一步？')) return;

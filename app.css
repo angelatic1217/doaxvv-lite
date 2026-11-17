@@ -128,7 +128,13 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .pick-thumb .thumb.noimg { font-size: 1.1rem; }
 .pick-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
-/* ---------------- wide screens (computer / tablet browser) ---------------- */
+/* record page order on narrow screens: info, swimsuits, form, undo */
+.rec-grid { display: flex; flex-direction: column; }
+.rec-left { display: contents; }
+.rec-info { order: 1; } .rec-suits { order: 2; } .rec-form { order: 3; } .rec-undo { order: 4; }
+.nav-ico, .side-info { display: none; }
+
+/* ---------------- wide screens (tablet / computer browser) ---------------- */
 @media (min-width: 760px) {
     body { padding-bottom: 24px; }
     main { max-width: 1180px; padding: 16px 24px; }
@@ -152,18 +158,45 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
     .pools { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
     .pools .card { margin: 0; }
 
-    /* record: info and form on the left, swimsuits on the right */
-    .rec-grid.is-open { display: grid; grid-template-columns: minmax(320px, 440px) 1fr; gap: 0 28px;
-                        grid-template-areas: "info suits" "form suits" "undo suits"; grid-template-rows: auto auto 1fr; align-items: start; }
-    .rec-grid.is-open .rec-info { grid-area: info; }
-    .rec-grid.is-open .rec-suits { grid-area: suits; }
-    .rec-grid.is-open .rec-form { grid-area: form; }
-    .rec-grid.is-open .rec-undo { grid-area: undo; }
-    .rec-grid.is-open .rec-form, .rec-grid.is-open .rec-undo { position: relative; }
-    .suits { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+    /* record: info + form stay in view on the left, swimsuits fill the right */
+    .rec-grid.is-open { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 0 32px; align-items: start; }
+    .rec-grid.is-open .rec-left { display: block; position: sticky; top: 64px; max-height: calc(100vh - 80px); overflow-y: auto; padding-right: 4px; }
+
+    /* swimsuit cards: at least 230 px; a row fills up before cards reach 460 px (images are 480 x 270) */
+    .suits { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
     .girls { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
-    .girl-suits { max-height: 60vh; }
+    .girl-suits { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px;
+                  max-height: none; overflow: visible; border-top: 0; padding: 4px 0; }
+    .pick-suit { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; border: 1px solid var(--line);
+                 border-radius: 12px; background: var(--card); }
+    .pick-suit:hover { border-color: var(--accent); }
+    .pick-thumb { width: 100%; }
+    .pick-thumb .thumb { border-radius: 8px; }
 
     /* assets / settings stay a readable width */
     #view > h2 ~ .nums, #view > h2 ~ .field, #view > .card, #view > .btn.block { max-width: 640px; }
+}
+
+/* ---------------- computer: left sidebar like the home system ---------------- */
+@media (min-width: 1100px) {
+    body::before { content: ""; position: fixed; inset: 0 auto 0 0; width: 220px; background: var(--card);
+                   border-right: 1px solid var(--line); z-index: 4; }
+    .topbar { position: fixed; top: 0; left: 0; width: 220px; background: transparent; border: 0;
+              padding: 16px 12px 8px 20px; }
+    .brand { font-size: 1.1rem; }
+    .tabbar { position: fixed; top: 64px; left: 0; width: 220px; transform: none; height: auto;
+              flex-direction: column; background: transparent; border: 0; }
+    .tabbar a { text-align: left; padding: 12px 20px; display: flex; gap: 10px; align-items: center; }
+    .tabbar a.on { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft); }
+    .nav-ico { display: inline-block; width: 1.4em; text-align: center; }
+    .side-info { display: block; position: fixed; z-index: 5; left: 0; top: 270px; bottom: 0; width: 220px;
+                 padding: 16px 20px; overflow-y: auto; border-top: 1px solid var(--line); }
+    .side-title { font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+    .side-stat { display: flex; justify-content: space-between; padding: 4px 0; }
+    .side-foot { margin-top: 16px; line-height: 1.7; }
+    main { margin-left: 220px; max-width: none; padding: 24px 32px; }
+    .home-side { top: 24px; }
+    .home-res, .home-foot { display: none; }          /* shown in the sidebar instead */
+    .home-side > .btn.block { margin-top: 0; }
+    .rec-grid.is-open .rec-left { top: 24px; max-height: calc(100vh - 48px); }
 }
