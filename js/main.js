@@ -2,13 +2,13 @@
 // Every save writes one inbox file and needs a connection; nothing is queued on the device.
 import { DATA_FILES, SourceError, loadConfig, loadInbox, loadSnapshot, makeSource, saveConfig } from './data.js';
 import {
-    buildModel, checkCounts, inboxFileName, makeOp, openRecordFor, poolsOn, previewStep, searchSuits,
+    buildModel, checkCounts, girlsInOrder, inboxFileName, makeOp, openRecordFor, poolsOn, previewStep, searchSuits, suitsOfGirl,
     today, undoableStep,
 } from './model.js';
 
 const app = { cfg: loadConfig(), source: null, snap: null, inbox: [], model: null, error: null, busy: false };
 const view = document.getElementById('view');
-const draft = { key: '', counts: new Map(), extras: [] };   // record page: picked swimsuits, kept across re-renders
+const draft = { key: '', counts: new Map(), extras: [], girl: null, extrasOpen: false, now: null };   // record page: picked swimsuits, kept across re-renders
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => (n || 0).toLocaleString();
@@ -306,13 +306,50 @@ function suitCard(item) {
     </div>`;
 }
 
+const HEAD = code => `https://doax.cc/res/icon_head/${encodeURIComponent(code)}.png`;
+
+function avatarHtml(girl) {
+    const initial = esc((girl.name || '?').slice(0, 1));
+    if (app.cfg.hideImages || !girl.code) return `<span class="avatar noimg">${initial}</span>`;
+    return `<img class="avatar" alt="" src="${HEAD(girl.code)}" data-initial="${initial}">`;
+}
+
+// 「加入其他泳裝」: pick a girl by her avatar, then one of her swimsuits (newest first).
+function girlPickerHtml(inPool = new Set()) {
+    const girl = draft.girl ? app.model.girls.get(draft.girl) : null;
+    if (!girl) {
+        return `<div class="girls">${girlsInOrder(app.model).map(g =>
+            `<button type="button" class="girl" data-girl="${g.id}">${avatarHtml(g)}<span>${esc(g.name)}</span></button>`).join('')}</div>`;
+    }
+    const suits = suitsOfGirl(app.model, girl.id);
+    return `<div class="row girl-head">${avatarHtml(girl)}<b class="grow">${esc(girl.name)}的泳裝（${suits.length}）</b>
+            <button type="button" class="btn small" data-girl="">換角色</button></div>
+        <div class="girl-suits">${suits.map(s => {
+            const added = draft.extras.some(x => x.swimsuit_id === s.id);
+            const note = inPool.has(s.id) ? '・在池中，點了數量 +1' : added ? '・已加入' : '';
+            return `<button type="button" class="pick ${added ? 'added' : ''}" data-id="${s.id}">
+                <span>${esc(s.name)}${app.model.owned.has(s.id) ? ' <span class="badge">已持有</span>' : ''}</span>
+                <span class="muted small">${esc(s.steam || (s.dmm ? `日版 ${s.dmm}` : ''))}${note}</span></button>`;
+        }).join('') || '<p class="muted">沒有泳裝資料</p>'}</div>`;
+}
+
+// Avatar fallback: the girl's initial when doax.cc does not answer.
+document.addEventListener('error', e => {
+    const img = e.target;
+    if (img instanceof HTMLImageElement && img.classList.contains('avatar')) {
+        img.replaceWith(Object.assign(document.createElement('span'), { className: 'avatar noimg', textContent: img.dataset.initial || '?' }));
+    }
+}, true);
+
 function renderRecord(uid) {
     const r = app.model.records.get(uid);
     if (!r) {
         view.innerHTML = '<section class="card"><p>找不到這筆紀錄（可能已被撤銷）。</p><a class="btn" href="#/">回首頁</a></section>';
         return;
     }
-    if (draft.key !== uid) { draft.key = uid; draft.counts = new Map(); draft.extras = []; }
+    if (draft.key !== uid) {
+        Object.assign(draft, { key: uid, counts: new Map(), extras: [], girl: null, extrasOpen: false, now: null });
+    }
     const last = r.steps.length ? r.steps[r.steps.length - 1] : r.start;
     const undo = undoableStep(r);
     const items = r.status === 'open' ? poolItems(r) : [];
@@ -327,15 +364,16 @@ function renderRecord(uid) {
         ${r.status === 'open' ? `
         <h3>這次抽到</h3>
         <div class="suits">${items.map(suitCard).join('') || '<p class="muted">快照沒有這池的泳裝名單，請從下方加入。</p>'}</div>
-        <details class="card" ${draft.extras.length ? '' : ''}><summary>加入其他泳裝</summary>
-            <input id="suit-q" type="search" placeholder="搜尋泳裝或角色名稱">
+        <details class="card" id="extra-box" ${draft.extrasOpen ? 'open' : ''}><summary>加入其他泳裝</summary>
+            <div id="girl-picker">${girlPickerHtml(new Set(items.filter(i => i.swimsuit_id && !i.key.startsWith('s')).map(i => i.swimsuit_id)))}</div>
+            <input id="suit-q" type="search" placeholder="或搜尋泳裝、角色名稱">
             <div id="suit-results"></div>
             <div class="row"><input id="suit-free" type="text" maxlength="80" placeholder="圖鑑沒有：手打名稱">
             <button class="btn small" id="btn-free">加入</button></div>
         </details>
         <h3>當下資源</h3>
         <div class="nums">
-            ${numInput('now-free', '免費石', last.free)}${numInput('now-paid', '有償石', last.paid)}${numInput('now-red', '紅票', last.red)}
+            ${numInput('now-free', '免費石', draft.now?.free ?? last.free)}${numInput('now-paid', '有償石', draft.now?.paid ?? last.paid)}${numInput('now-red', '紅票', draft.now?.red ?? last.red)}
         </div>
         <p id="preview" class="small"></p>
         <div class="row">
@@ -366,19 +404,42 @@ function bindRecorder(r, items) {
             card.classList.toggle('on', n > 0);
         });
     });
+    // Re-render after adding a suit: keep the typed resources and the open 「加入其他泳裝」 box.
+    const rerender = () => {
+        draft.now = { free: document.getElementById('now-free').value, paid: document.getElementById('now-paid').value,
+                      red: document.getElementById('now-red').value };
+        draft.extrasOpen = true;
+        renderRecord(r.uid);
+    };
+    const inPool = new Set(items.filter(i => i.swimsuit_id && !i.key.startsWith('s')).map(i => i.swimsuit_id));
+    const addSuit = id => {
+        const s = app.model.suits.get(Number(id));
+        const listed = s && items.find(i => i.swimsuit_id === s.id && !i.key.startsWith('s'));
+        if (listed) {
+            draft.counts.set(listed.key, (draft.counts.get(listed.key) || 0) + 1);   // already a card: count it
+        } else if (s && !draft.extras.some(x => x.swimsuit_id === s.id)) {
+            draft.extras.push({ key: `s${s.id}`, swimsuit_id: s.id, girl_id: s.girl_id, label: s.name });
+            draft.counts.set(`s${s.id}`, 1);
+        }
+        rerender();
+    };
+    const bindPicker = () => {
+        const box = document.getElementById('girl-picker');
+        box.querySelectorAll('[data-girl]').forEach(b => b.onclick = () => {
+            draft.girl = b.dataset.girl ? Number(b.dataset.girl) : null;
+            box.innerHTML = girlPickerHtml(inPool);
+            bindPicker();
+        });
+        box.querySelectorAll('.girl-suits .pick').forEach(b => b.onclick = () => addSuit(b.dataset.id));
+    };
+    bindPicker();
+    document.getElementById('extra-box').ontoggle = e => { draft.extrasOpen = e.target.open; };
     const q = document.getElementById('suit-q');
     q.oninput = () => {
         const found = searchSuits(app.model, q.value);
         document.getElementById('suit-results').innerHTML = found.map(s =>
-            `<button class="pick" data-id="${s.id}">${esc(s.name)}<span class="muted small">${esc(girlName(s.girl_id))}</span></button>`).join('');
-        document.querySelectorAll('#suit-results .pick').forEach(b => b.onclick = () => {
-            const s = app.model.suits.get(Number(b.dataset.id));
-            if (!draft.extras.some(x => x.swimsuit_id === s.id)) {
-                draft.extras.push({ key: `s${s.id}`, swimsuit_id: s.id, girl_id: s.girl_id, label: s.name });
-                draft.counts.set(`s${s.id}`, 1);
-            }
-            renderRecord(r.uid);
-        });
+            `<button type="button" class="pick" data-id="${s.id}">${esc(s.name)}<span class="muted small">${esc(girlName(s.girl_id))}</span></button>`).join('');
+        document.querySelectorAll('#suit-results .pick').forEach(b => b.onclick = () => addSuit(b.dataset.id));
     };
     document.getElementById('btn-free').onclick = () => {
         const label = document.getElementById('suit-free').value.trim();
@@ -386,7 +447,7 @@ function bindRecorder(r, items) {
         const key = `t${draft.extras.length}-${label}`;
         draft.extras.push({ key, swimsuit_id: null, girl_id: null, label });
         draft.counts.set(key, 1);
-        renderRecord(r.uid);
+        rerender();
     };
     const preview = () => {
         const now = { free: readNum('now-free'), paid: readNum('now-paid'), red: readNum('now-red') };
@@ -420,8 +481,7 @@ async function saveStep(r, items, kind) {
     if (kind === 'end' && !confirm('結束這池？之後不能再新增出貨。')) return;
     const uid = await writeOp('record_step', { record_uid: r.uid, kind, ...now, hits });
     if (!uid) return;
-    draft.counts = new Map();
-    draft.extras = [];
+    Object.assign(draft, { counts: new Map(), extras: [], girl: null, extrasOpen: false, now: null });
     toast(kind === 'end' ? '已結束這池' : '已儲存出貨');
     renderRecord(r.uid);
 }

@@ -186,6 +186,18 @@ export function searchSuits(model, query, limit = 20) {
     return out;
 }
 
+// Girls in release order (snapshot 1.1 `order`; 1.0 snapshots fall back to id order).
+export function girlsInOrder(model) {
+    return [...model.girls.values()].sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999) || a.id - b.id);
+}
+
+// One girl's swimsuits, newest Steam release first (not on Steam yet: by JP date, after the Steam ones).
+export function suitsOfGirl(model, girlId) {
+    const key = s => s.steam ? `1${s.steam}` : `0${s.dmm || ''}`;
+    return [...model.suits.values()].filter(s => s.girl_id === girlId)
+        .sort((a, b) => key(b).localeCompare(key(a)) || b.id - a.id);
+}
+
 export function checkCounts(values) {
     for (const v of values) if (!Number.isInteger(v) || v < 0) return '鑽石與紅票必須是 0 以上的整數';
     return '';

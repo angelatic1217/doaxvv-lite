@@ -110,3 +110,15 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
 }
 .toast.show { opacity: .95; }
 .toast.bad { background: var(--danger); color: #fff; }
+
+/* 加入其他泳裝: girl picker */
+.girls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+@media (min-width: 520px) { .girls { grid-template-columns: repeat(6, 1fr); } }
+.girl { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border: 1px solid var(--line);
+        border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; font-size: .8rem; cursor: pointer; min-width: 0; }
+.girl span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: var(--line); flex: none; }
+.avatar.noimg { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent); }
+.girl-head { margin: 8px 0; }
+.girl-suits { max-height: 50vh; overflow-y: auto; border-top: 1px solid var(--line); margin-bottom: 8px; }
+.pick.added { opacity: .55; }
