@@ -242,7 +242,8 @@ function renderNew() {
         const existing = openRecordFor(m, p.news_key);
         return `<button class="card pool ${choice === p.news_key ? 'on' : ''}" data-pool="${esc(p.news_key)}" ${existing ? `data-open="${esc(existing.uid)}"` : ''}>
             <div class="title">${esc(p.title)}</div>
-            <div class="small muted">${esc(p.start)} ～ ${esc((p.end || '').slice(0, 10) || '?')}・${p.suits.length} 件</div>
+            <div class="small muted">${esc(p.start)} ～ ${esc((p.end || '').slice(0, 10) || '?')}・${p.bromide_pool
+                ? `寫真卡池・${(p.bromides || []).length} 張 Pickup 卡` : `${p.suits.length} 件`}</div>
             ${existing ? '<div class="small open-note">已有記錄中的紀錄，點這裡繼續</div>' : ''}
         </button>`;
     };
@@ -321,8 +322,33 @@ function stepsTable(r) {
         <tbody>${rows.join('')}</tbody></table></div>`;
 }
 
+function poolOf(r) { return r.news_key ? app.model.pools.get(r.news_key) || null : null; }
+
+// DEC-M3-085: a Deco-bromide Gacha lists the post's pickup cards instead of swimsuits (only those, on the phone).
+function bromideItems(pool) {
+    return (pool.bromides || []).map(b => ({ key: `b${b.id}`, bromide: b, gacha_bromide_id: b.id, card: b.card,
+                                            girl_id: b.girl_id, label: b.label }));
+}
+
+const ATTR = { pow: 'POW', tec: 'TEC', stm: 'STM' };
+
+function bromideCard(item) {
+    const b = item.bromide;
+    const n = draft.counts.get(item.key) || 0;
+    const img = app.cfg.hideImages || !b.img ? '<div class="thumb noimg">🃏</div>'
+        : `<img class="thumb card-img" loading="lazy" alt="" src="${esc(b.img)}">`;
+    return `<div class="suit ${n ? 'on' : ''}" data-key="${esc(item.key)}">
+        ${img}
+        <div class="suit-name">${esc(b.label)}</div>
+        <div class="muted small">${esc(b.skill)}</div>
+        <div class="muted small">${esc([b.rarity, ATTR[b.attribute] || '', b.cost ? `COST ${b.cost}` : ''].filter(Boolean).join('・'))}</div>
+        <div class="stepper"><button type="button" data-d="-1">−</button><span>${n}</span><button type="button" data-d="1">＋</button></div>
+    </div>`;
+}
+
 function poolItems(r) {
-    const pool = r.news_key ? app.model.pools.get(r.news_key) : null;
+    const pool = poolOf(r);
+    if (pool?.bromide_pool) return bromideItems(pool);
     const items = (pool?.suits || []).map((s, i) => ({
         key: `p${i}`, swimsuit_id: s.swimsuit_id, girl_id: s.girl_id,
         label: (s.swimsuit_id && app.model.suits.get(s.swimsuit_id)?.name) || s.label,
@@ -397,7 +423,13 @@ function renderRecord(uid) {
     const undo = undoableStep(r);
     const items = r.status === 'open' ? poolItems(r) : [];
     const open = r.status === 'open';
-    const suitsBlock = open ? `
+    const bromidePool = !!poolOf(r)?.bromide_pool;
+    const suitsBlock = open && bromidePool ? `
+        <div class="rec-suits">
+        <h3>這次抽到的寫真卡</h3>
+        <div class="suits">${items.map(bromideCard).join('') || '<p class="muted">快照沒有這池的 Pickup 卡名單。</p>'}</div>
+        <p class="muted small">回本機匯入時，每抽到一張就在寫真管理新增一張。公告沒列的卡請回本機記。</p>
+        </div>` : open ? `
         <div class="rec-suits">
         <h3>這次抽到</h3>
         <div class="suits">${items.map(suitCard).join('') || '<p class="muted">快照沒有這池的泳裝名單，請從下方加入。</p>'}</div>
@@ -442,7 +474,7 @@ function renderRecord(uid) {
         </div>
         ${suitsBlock}
         </div>`;
-    if (r.status === 'open') bindRecorder(r, items);
+    if (r.status === 'open') bindRecorder(r, items, bromidePool);
     if (undo) document.getElementById('btn-undo').onclick = async () => {
         if (!confirm('撤銷最後一步？')) return;
         if (await removeFile(undo.file)) { toast('已撤銷'); renderRecord(uid); }
@@ -454,7 +486,7 @@ function renderRecord(uid) {
     };
 }
 
-function bindRecorder(r, items) {
+function bindRecorder(r, items, bromidePool = false) {
     view.querySelectorAll('.suit').forEach(card => {
         card.querySelectorAll('[data-d]').forEach(btn => btn.onclick = () => {
             const key = card.dataset.key;
@@ -471,6 +503,11 @@ function bindRecorder(r, items) {
         draft.extrasOpen = true;
         renderRecord(r.uid);
     };
+    if (!bromidePool) bindSuitPicker(items, rerender);
+    bindResources(r, items);
+}
+
+function bindSuitPicker(items, rerender) {
     const inPool = new Set(items.filter(i => i.swimsuit_id && !i.key.startsWith('s')).map(i => i.swimsuit_id));
     const addSuit = id => {
         const s = app.model.suits.get(Number(id));
@@ -514,6 +551,9 @@ function bindRecorder(r, items) {
         draft.counts.set(key, 1);
         rerender();
     };
+}
+
+function bindResources(r, items) {
     const preview = () => {
         const now = { free: readNum('now-free'), paid: readNum('now-paid'), red: readNum('now-red') };
         const el = document.getElementById('preview');
@@ -534,12 +574,14 @@ async function saveStep(r, items, kind) {
     const now = { free: readNum('now-free'), paid: readNum('now-paid'), red: readNum('now-red') };
     const bad = checkCounts(Object.values(now));
     if (bad) return toast(bad, true);
-    const hits = items.filter(i => (draft.counts.get(i.key) || 0) > 0).map(i => ({
-        swimsuit_id: i.swimsuit_id ?? null, girl_id: i.girl_id ?? (i.swimsuit_id ? app.model.suits.get(i.swimsuit_id)?.girl_id ?? null : null),
-        label: i.label, count: draft.counts.get(i.key),
-    }));
-    if (kind === 'hit' && !hits.length) return toast('請至少選一件抽到的泳裝', true);
-    if (kind === 'end' && hits.length) return toast('結束這池時不記泳裝，請先儲存出貨', true);
+    const hits = items.filter(i => (draft.counts.get(i.key) || 0) > 0).map(i => i.bromide
+        ? { gacha_bromide_id: i.gacha_bromide_id, card: i.card, girl_id: i.girl_id ?? null, label: i.label,
+            count: draft.counts.get(i.key) }
+        : { swimsuit_id: i.swimsuit_id ?? null, girl_id: i.girl_id ?? (i.swimsuit_id ? app.model.suits.get(i.swimsuit_id)?.girl_id ?? null : null),
+            label: i.label, count: draft.counts.get(i.key) });
+    const what = items.some(i => i.bromide) ? '寫真卡' : '泳裝';
+    if (kind === 'hit' && !hits.length) return toast(`請至少選一${what === '寫真卡' ? '張' : '件'}抽到的${what}`, true);
+    if (kind === 'end' && hits.length) return toast(`結束這池時不記${what}，請先儲存出貨`, true);
     const p = previewStep(r, now);
     if (p.increased && !confirm('資源比上一步多，這一步會以 0 抽計。仍要儲存？')) return;
     if (p.uneven && !confirm('石頭差額不是 500 的倍數。仍要儲存？')) return;

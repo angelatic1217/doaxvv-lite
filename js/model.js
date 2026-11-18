@@ -5,10 +5,11 @@
 //   op "record_start": date, pool: { news_key, title } (news_key "" = typed-in pool name), start: { free, paid, red }
 //   op "record_step":  record_uid, kind: "hit" | "end", free, paid, red,
 //                      hits: [{ swimsuit_id | null, girl_id | null, label, count }]
+//                      1.1 (DEC-M3-085): a deco-bromide hit is { gacha_bromide_id, card, label, girl_id, count }
 //   op "assets":       free, paid, red, notes   (white tickets: the local import keeps the latest value)
 // File name: <YYYYMMDD-HHMMSS-mmm>-<op>-<first 8 of uid>.json, so name order = time order.
 
-export const INBOX_VERSION = '1.0';
+export const INBOX_VERSION = '1.1';
 export const SNAPSHOT_MAJOR = 1;
 export const STONES_PER_PULL = 500;
 const NO_END_WINDOW_DAYS = 14;
@@ -78,7 +79,8 @@ function normalizeStep(s, extra = {}) {
         uid: s.uid, kind: s.kind, at: s.at || s.created_at || '',
         free: s.free || 0, paid: s.paid || 0, red: s.red || 0,
         hits: (s.hits || []).map(h => ({ swimsuit_id: h.swimsuit_id ?? null, girl_id: h.girl_id ?? null,
-                                         label: h.label || '', count: h.count || 1 })),
+                                         label: h.label || '', count: h.count || 1,
+                                         kind: h.kind || (h.gacha_bromide_id || h.card ? 'bromide' : 'suit') })),
         ...extra,
     };
 }
