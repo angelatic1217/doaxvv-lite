@@ -6,10 +6,13 @@
 //   op "record_step":  record_uid, kind: "hit" | "end", free, paid, red,
 //                      hits: [{ swimsuit_id | null, girl_id | null, label, count }]
 //                      1.1 (DEC-M3-085): a deco-bromide hit is { gacha_bromide_id, card, label, girl_id, count }
+//                      1.2 (DEC-M3-086): a card of a pool without a pickup list is
+//                          { kind: "bromide", girl_id, attribute: "pow"|"tec"|"stm", label, count } or { kind: "bromide", label, count }
+//   1.2: record_start pool.kind = "suit" | "bromide" for a typed pool name (DEC-M3-088)
 //   op "assets":       free, paid, red, notes   (white tickets: the local import keeps the latest value)
 // File name: <YYYYMMDD-HHMMSS-mmm>-<op>-<first 8 of uid>.json, so name order = time order.
 
-export const INBOX_VERSION = '1.1';
+export const INBOX_VERSION = '1.2';
 export const SNAPSHOT_MAJOR = 1;
 export const STONES_PER_PULL = 500;
 const NO_END_WINDOW_DAYS = 14;
@@ -104,7 +107,7 @@ export function buildModel(snap, inbox) {
     const records = new Map();
     for (const r of snap.ledger.records || []) {
         records.set(r.uid, {
-            uid: r.uid, date: r.date, banner: r.banner, news_key: r.news_key || '', status: r.status,
+            uid: r.uid, date: r.date, banner: r.banner, news_key: r.news_key || '', status: r.status, kind: r.kind || '',
             start: { ...r.start }, steps: (r.steps || []).map(s => normalizeStep(s)),
             imported_pulls: r.imported_pulls, total_pulls: r.total_pulls, pending: false, file: null,
         });
@@ -122,6 +125,7 @@ export function buildModel(snap, inbox) {
         if (op.op === 'record_start') {
             records.set(op.uid, {
                 uid: op.uid, date: op.date, banner: op.pool?.title || '', news_key: op.pool?.news_key || '',
+                kind: op.pool?.kind || '',
                 manual: !op.pool?.news_key, status: 'open', start: { ...op.start }, steps: [],
                 pending: true, file: file.name, created_at: op.created_at,
             });

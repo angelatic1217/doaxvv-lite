@@ -256,7 +256,9 @@ function renderNew() {
         <div class="card ${choice === '__manual' ? 'on' : ''}">
             <label class="field"><span>快照沒有的卡池：手填池名</span>
             <input id="new-manual" type="text" maxlength="80" placeholder="例：夜曲穿搭抽卡" value="${esc(renderNew.manual || '')}"></label>
-            <p class="muted small">回本機匯入時會比對公告，確認後才連到卡池。</p>
+            <div class="row type-pills" id="new-kind">${[['suit', '泳裝'], ['bromide', '寫真卡']].map(([v, l]) =>
+                `<button type="button" class="pill ${(renderNew.kind || 'suit') === v ? 'on' : ''}" data-kind="${v}">${l}</button>`).join('')}</div>
+            <p class="muted small">回本機更新公告並同步後，只有一個卡池對得上時自動連上（寫真卡：當天唯一的寫真卡池）；對不上的留在本機待確認。</p>
         </div>
         <h3>開始前資源</h3>
         <div class="nums">
@@ -264,6 +266,10 @@ function renderNew() {
         </div>
         <button class="btn primary block" data-save id="btn-start">開始記錄</button>`;
     document.getElementById('new-date').onchange = e => { renderNew.day = e.target.value || today(); renderNew.choice = ''; renderNew(); };
+    view.querySelectorAll('#new-kind [data-kind]').forEach(b => b.onclick = () => {
+        renderNew.kind = b.dataset.kind;
+        view.querySelectorAll('#new-kind .pill').forEach(x => x.classList.toggle('on', x === b));
+    });
     document.getElementById('new-manual').oninput = e => {
         renderNew.manual = e.target.value;
         renderNew.choice = e.target.value.trim() ? '__manual' : '';
@@ -284,7 +290,7 @@ async function startRecord() {
     const day = document.getElementById('new-date').value;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return toast('請選日期', true);
     let pool;
-    if (renderNew.choice === '__manual') pool = { news_key: '', title: (renderNew.manual || '').trim() };
+    if (renderNew.choice === '__manual') pool = { news_key: '', title: (renderNew.manual || '').trim(), kind: renderNew.kind || 'suit' };
     else if (renderNew.choice) pool = { news_key: renderNew.choice, title: m.pools.get(renderNew.choice)?.title || '' };
     if (!pool || !pool.title) return toast('請選一個卡池或手填池名', true);
     const start = { free: readNum('st-free'), paid: readNum('st-paid'), red: readNum('st-red') };
@@ -292,7 +298,7 @@ async function startRecord() {
     if (bad) return toast(bad, true);
     const uid = await writeOp('record_start', { date: day, pool, start });
     if (!uid) return;
-    renderNew.choice = ''; renderNew.manual = ''; renderNew.day = '';
+    renderNew.choice = ''; renderNew.manual = ''; renderNew.day = ''; renderNew.kind = '';
     toast('已開始記錄');
     location.hash = `#/rec/${encodeURIComponent(uid)}`;
 }
@@ -346,9 +352,15 @@ function bromideCard(item) {
     </div>`;
 }
 
+// A card record: a Deco-bromide post, or a typed pool marked 寫真卡 (DEC-M3-088).
+function isCardRecord(r) { return r.kind === 'bromide' || !!poolOf(r)?.bromide_pool; }
+
 function poolItems(r) {
     const pool = poolOf(r);
-    if (pool?.bromide_pool) return bromideItems(pool);
+    if (isCardRecord(r)) {
+        const listed = pool ? bromideItems(pool) : [];
+        return listed.length ? listed : draft.extras;   // no pickup list yet: cards picked by girl + attribute
+    }
     const items = (pool?.suits || []).map((s, i) => ({
         key: `p${i}`, swimsuit_id: s.swimsuit_id, girl_id: s.girl_id,
         label: (s.swimsuit_id && app.model.suits.get(s.swimsuit_id)?.name) || s.label,
@@ -423,11 +435,22 @@ function renderRecord(uid) {
     const undo = undoableStep(r);
     const items = r.status === 'open' ? poolItems(r) : [];
     const open = r.status === 'open';
-    const bromidePool = !!poolOf(r)?.bromide_pool;
-    const suitsBlock = open && bromidePool ? `
+    const bromidePool = isCardRecord(r);
+    const pickList = bromidePool && !(poolOf(r)?.bromides || []).length;
+    const suitsBlock = open && bromidePool && pickList ? `
         <div class="rec-suits">
         <h3>這次抽到的寫真卡</h3>
-        <div class="suits">${items.map(bromideCard).join('') || '<p class="muted">快照沒有這池的 Pickup 卡名單。</p>'}</div>
+        <p class="muted small">快照還沒有這池的 Pickup 卡：選角色再點屬性記下來，回本機更新公告後自動對到 Pickup 卡並在寫真管理新增。</p>
+        <div class="suits">${items.map(pickedCard).join('') || '<p class="muted">還沒選卡。</p>'}</div>
+        <details class="card" id="extra-box" ${draft.extrasOpen || !items.length ? 'open' : ''}><summary>加入寫真卡</summary>
+            <div id="girl-picker">${cardPickerHtml()}</div>
+            <div class="row"><input id="card-free" type="text" maxlength="80" placeholder="聯動卡等沒有角色：手打卡名">
+            <button class="btn small" id="btn-card-free">加入</button></div>
+        </details>
+        </div>` : open && bromidePool ? `
+        <div class="rec-suits">
+        <h3>這次抽到的寫真卡</h3>
+        <div class="suits">${items.map(bromideCard).join('')}</div>
         <p class="muted small">回本機匯入時，每抽到一張就在寫真管理新增一張。公告沒列的卡請回本機記。</p>
         </div>` : open ? `
         <div class="rec-suits">
@@ -474,7 +497,7 @@ function renderRecord(uid) {
         </div>
         ${suitsBlock}
         </div>`;
-    if (r.status === 'open') bindRecorder(r, items, bromidePool);
+    if (r.status === 'open') bindRecorder(r, items, bromidePool, pickList);
     if (undo) document.getElementById('btn-undo').onclick = async () => {
         if (!confirm('撤銷最後一步？')) return;
         if (await removeFile(undo.file)) { toast('已撤銷'); renderRecord(uid); }
@@ -486,7 +509,7 @@ function renderRecord(uid) {
     };
 }
 
-function bindRecorder(r, items, bromidePool = false) {
+function bindRecorder(r, items, bromidePool = false, pickList = false) {
     view.querySelectorAll('.suit').forEach(card => {
         card.querySelectorAll('[data-d]').forEach(btn => btn.onclick = () => {
             const key = card.dataset.key;
@@ -504,7 +527,59 @@ function bindRecorder(r, items, bromidePool = false) {
         renderRecord(r.uid);
     };
     if (!bromidePool) bindSuitPicker(items, rerender);
+    else if (pickList) bindCardPicker(rerender);
     bindResources(r, items);
+}
+
+// DEC-M3-086: girl avatar, then POW / TEC / STM; the same girl + attribute again counts +1.
+function cardPickerHtml() {
+    const girl = draft.girl ? app.model.girls.get(draft.girl) : null;
+    if (!girl) {
+        return `<div class="girls">${girlsInOrder(app.model).map(g =>
+            `<button type="button" class="girl" data-girl="${g.id}">${avatarHtml(g)}<span>${esc(g.name)}</span></button>`).join('')}</div>`;
+    }
+    return `<div class="row girl-head">${avatarHtml(girl)}<b class="grow">${esc(girl.name)}的哪張？</b>
+            <button type="button" class="btn small" data-girl="">換角色</button></div>
+        <div class="row attr-pick">${Object.entries(ATTR).map(([v, l]) =>
+            `<button type="button" class="btn grow" data-attr="${v}">${l}</button>`).join('')}</div>`;
+}
+
+function pickedCard(item) {
+    const n = draft.counts.get(item.key) || 0;
+    const girl = item.girl_id ? app.model.girls.get(item.girl_id) : null;
+    return `<div class="suit ${n ? 'on' : ''}" data-key="${esc(item.key)}">
+        ${girl ? `<div class="thumb noimg picked">${avatarHtml(girl)}</div>` : '<div class="thumb noimg">🃏</div>'}
+        <div class="suit-name">${esc(item.label)}</div>
+        <div class="muted small">${item.girl_id ? '回本機自動對應' : '手打卡名・回本機比對'}</div>
+        <div class="stepper"><button type="button" data-d="-1">−</button><span>${n}</span><button type="button" data-d="1">＋</button></div>
+    </div>`;
+}
+
+function bindCardPicker(rerender) {
+    const add = (key, item) => {
+        if (draft.extras.some(x => x.key === key)) draft.counts.set(key, (draft.counts.get(key) || 0) + 1);
+        else { draft.extras.push({ key, ...item }); draft.counts.set(key, 1); }
+        rerender();
+    };
+    const bind = () => {
+        const box = document.getElementById('girl-picker');
+        box.querySelectorAll('[data-girl]').forEach(b => b.onclick = () => {
+            draft.girl = b.dataset.girl ? Number(b.dataset.girl) : null;
+            box.innerHTML = cardPickerHtml();
+            bind();
+        });
+        box.querySelectorAll('[data-attr]').forEach(b => b.onclick = () => {
+            const girl = app.model.girls.get(draft.girl);
+            const attr = b.dataset.attr;
+            add(`g${girl.id}-${attr}`, { picked: true, girl_id: girl.id, attribute: attr, label: `${girl.name}・${ATTR[attr]}` });
+        });
+    };
+    bind();
+    document.getElementById('extra-box').ontoggle = e => { draft.extrasOpen = e.target.open; };
+    document.getElementById('btn-card-free').onclick = () => {
+        const label = document.getElementById('card-free').value.trim();
+        if (label) add(`t-${label}`, { picked: true, girl_id: null, attribute: '', label });
+    };
 }
 
 function bindSuitPicker(items, rerender) {
@@ -574,12 +649,15 @@ async function saveStep(r, items, kind) {
     const now = { free: readNum('now-free'), paid: readNum('now-paid'), red: readNum('now-red') };
     const bad = checkCounts(Object.values(now));
     if (bad) return toast(bad, true);
-    const hits = items.filter(i => (draft.counts.get(i.key) || 0) > 0).map(i => i.bromide
+    const hits = items.filter(i => (draft.counts.get(i.key) || 0) > 0).map(i => i.picked
+        ? (i.girl_id ? { kind: 'bromide', girl_id: i.girl_id, attribute: i.attribute, label: i.label, count: draft.counts.get(i.key) }
+                     : { kind: 'bromide', label: i.label, count: draft.counts.get(i.key) })
+        : i.bromide
         ? { gacha_bromide_id: i.gacha_bromide_id, card: i.card, girl_id: i.girl_id ?? null, label: i.label,
             count: draft.counts.get(i.key) }
         : { swimsuit_id: i.swimsuit_id ?? null, girl_id: i.girl_id ?? (i.swimsuit_id ? app.model.suits.get(i.swimsuit_id)?.girl_id ?? null : null),
             label: i.label, count: draft.counts.get(i.key) });
-    const what = items.some(i => i.bromide) ? '寫真卡' : '泳裝';
+    const what = isCardRecord(r) ? '寫真卡' : '泳裝';
     if (kind === 'hit' && !hits.length) return toast(`請至少選一${what === '寫真卡' ? '張' : '件'}抽到的${what}`, true);
     if (kind === 'end' && hits.length) return toast(`結束這池時不記${what}，請先儲存出貨`, true);
     const p = previewStep(r, now);

@@ -121,6 +121,7 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .avatar.noimg { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent); }
 .girl-head { margin: 8px 0; }
 .type-pills { margin: 0 0 8px; }
+.attr-pick { gap: 8px; margin: 8px 0; }
 .girl-suits { display: grid; gap: 10px; max-height: 70vh; overflow-y: auto; padding: 4px 2px 4px 0; margin-bottom: 8px; }
 .pick.added { opacity: .55; }
 /* one swimsuit = a card whose image spans the list's width (phone) or a grid cell (wider screens) */
