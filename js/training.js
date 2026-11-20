@@ -11,7 +11,14 @@ const EVENT_QUEUES = ['climb', 'grind'];
 const TYPES = { POW: ['P', 't-pow'], TEC: ['T', 't-tec'], STM: ['S', 't-stm'] };
 const OILS = [['red', '紅'], ['green', '綠'], ['yellow', '黃']];
 
-const tr = { oils: false, current: null, listY: null };
+const store = {
+    get(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode: not remembered */ } },
+};
+// Open sections on a girl's page (2026-11-20 user request): collapsed by default, the same for every girl,
+// remembered on this device.
+const tr = { oils: false, current: null, listY: null,
+             open: new Set(String(store.get('lite.tr.sections', '')).split(',').filter(Boolean)) };
 
 const fmt = n => (n ?? 0).toLocaleString();
 const done = item => ctx.app.model.trainingDone.get(`${item.queue}:${item.ref_id}`) || [];
@@ -73,12 +80,16 @@ function itemsHtml(items) {
     return QUEUES.map(q => {
         const list = items.filter(i => i.queue === q);
         if (!list.length) return '';
-        return `<div class="tr-queue"><div class="tr-qname">${NAMES[q]}</div>
-            ${list.map(i => `<div class="tr-item ${isDone(i) ? 'is-done' : ''}">
+        const open = tr.open.has(q);
+        const left = list.filter(i => !isDone(i)).length;
+        const pending = list.length - left;
+        return `<div class="tr-queue"><button type="button" class="link tr-qname" data-section="${q}" aria-expanded="${open}">
+                <span>${open ? '▾' : '▸'} ${NAMES[q]} <b>${left}</b></span>${pending ? `<span class="badge pending">${pending} 待匯入</span>` : ''}</button>
+            ${open ? list.map(i => `<div class="tr-item ${isDone(i) ? 'is-done' : ''}">
                 ${q === 'awaken' || EVENT_QUEUES.includes(q) ? suitThumb(i.suit_id) : ''}
                 <div class="tr-text"><div>${textHtml(i)}</div>${isDone(i) ? '' : statusHtml(i)}</div>
                 <div class="tr-act">${actionHtml(i)}</div>
-            </div>`).join('')}</div>`;
+            </div>`).join('') : ''}</div>`;
     }).join('');
 }
 
@@ -183,6 +194,12 @@ const rerender = () => keepScroll(() => renderTraining(tr.current));
 function bind() {
     const root = ctx.view;
     root.querySelectorAll('a.tr-card').forEach(a => a.onclick = () => { tr.listY = window.scrollY; });
+    root.querySelectorAll('[data-section]').forEach(b => b.onclick = () => {
+        const q = b.dataset.section;
+        if (tr.open.has(q)) tr.open.delete(q); else tr.open.add(q);
+        store.set('lite.tr.sections', [...tr.open].join(','));
+        rerender();
+    });
     const oils = root.querySelector('[data-oils]');
     if (oils) oils.onclick = () => { tr.oils = !tr.oils; rerender(); };
     root.querySelectorAll('[data-done]').forEach(b => b.onclick = () => {
