@@ -137,7 +137,8 @@ function render() {
     renderSide();
     document.querySelectorAll('.tabbar a').forEach(a => a.classList.toggle('on', hash === a.getAttribute('href') ||
         (a.getAttribute('href') === '#/' && (hash.startsWith('#/rec') || hash === '#/new' || hash === '#/assets')) ||
-        (a.getAttribute('href') === '#/future' && hash.startsWith('#/future/'))));
+        (a.getAttribute('href') === '#/future' && hash.startsWith('#/future/')) ||
+        (a.getAttribute('href') === '#/training' && hash.startsWith('#/training/'))));
     document.getElementById('sheet').hidden = true;
     if (hash === '#/settings') return renderSettings();
     if (app.error) return renderError(app.error);
@@ -149,6 +150,7 @@ function render() {
     if (hash.startsWith('#/future/')) return renderFuture(decodeURIComponent(hash.slice(9)));
     if (hash === '#/catalog') return renderCatalog();
     if (hash === '#/training') return renderTraining();
+    if (hash.startsWith('#/training/')) return renderTraining(Number(hash.slice(11)));
     if (hash.startsWith('#/rec/')) return renderRecord(decodeURIComponent(hash.slice(6)));
     return renderHome();
 }
