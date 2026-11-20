@@ -184,6 +184,34 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .fv-table td { vertical-align: top; }
 .fv-table tr.neg td:nth-last-child(2) { color: var(--danger); }
 
+/* 培育 (8.18) */
+.tr-inv-row { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.tr-oil-toggle { color: var(--accent); }
+.tr-oils { border-collapse: collapse; margin: 8px 0 4px; font-size: .9rem; }
+.tr-oils th, .tr-oils td { padding: 2px 10px; text-align: right; border-bottom: 1px solid var(--line); }
+.tr-oils tbody th { text-align: left; }
+.tr-head { display: flex; align-items: center; gap: 10px; width: 100%; }
+.tr-rank { min-width: 2.2em; color: var(--accent); font-size: 1.1rem; }
+.tr-head .avatar { width: 40px; height: 40px; }
+.tr-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tr-name { font-weight: 700; }
+.tr-finish { font-size: .85rem; color: var(--muted); }
+.tr-finish.bad { color: var(--danger); }
+.tr-caret { color: var(--muted); }
+.tr-type { display: inline-block; width: 1.3em; text-align: center; border-radius: 4px; color: #fff; font-size: .78rem; margin-right: 4px; }
+.t-pow { background: #e03131; } .t-tec { background: #2f9e44; } .t-stm { background: #e8a200; }
+.tr-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.tr-chip { font-size: .82rem; padding: 1px 8px; border-radius: 999px; background: var(--line); }
+.tr-chip.bad { background: var(--warn-soft); color: var(--danger); }
+.tr-queue { margin-top: 10px; }
+.tr-qname { font-size: .8rem; font-weight: 700; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.tr-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.tr-item.is-done .tr-text { opacity: .5; text-decoration: line-through; }
+.tr-thumb { width: 72px; flex: none; }
+.tr-text { flex: 1; min-width: 0; font-size: .92rem; display: flex; flex-direction: column; }
+.tr-act { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; align-items: center; flex: none; max-width: 48%; }
+.tr-act .badge { margin-left: 0; }
+
 /* record page order on narrow screens: info, swimsuits, form, undo */
 .rec-grid { display: flex; flex-direction: column; }
 .rec-left { display: contents; }
@@ -200,7 +228,7 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
         top: 0; bottom: auto; left: 50%; right: auto; transform: translateX(-50%);
         background: transparent; border: 0; padding: 0; height: 49px; align-items: stretch;
     }
-    .tabbar a { flex: none; padding: 12px 22px; }
+    .tabbar a { flex: none; padding: 12px 18px; }
     .tabbar a.on { box-shadow: inset 0 -3px 0 var(--accent); }
     .toast { left: auto; right: 24px; bottom: 24px; max-width: 420px; }
 
@@ -228,6 +256,8 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
     /* 未來視 */
     .fv-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; align-items: start; }
     .fv-cards .card { margin: 0; }
+    .tr-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; align-items: start; }
+    .tr-cards .card { margin: 0; }
 
     /* read-only pages */
     .posts { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; }
@@ -253,7 +283,7 @@ table.steps { width: 100%; border-collapse: collapse; font-size: .85rem; }
     .tabbar a { text-align: left; padding: 12px 20px; display: flex; gap: 10px; align-items: center; }
     .tabbar a.on { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft); }
     .nav-ico { display: inline-block; width: 1.4em; text-align: center; }
-    .side-info { display: block; position: fixed; z-index: 5; left: 0; top: 320px; bottom: 0; width: 220px;
+    .side-info { display: block; position: fixed; z-index: 5; left: 0; top: 368px; bottom: 0; width: 220px;
                  padding: 16px 20px; overflow-y: auto; border-top: 1px solid var(--line); }
     .side-title { font-weight: 700; color: var(--muted); margin-bottom: 8px; }
     .side-stat { display: flex; justify-content: space-between; padding: 4px 0; }

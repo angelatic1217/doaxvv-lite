@@ -10,9 +10,12 @@
 //                          { kind: "bromide", girl_id, attribute: "pow"|"tec"|"stm", label, count } or { kind: "bromide", label, count }
 //   1.2: record_start pool.kind = "suit" | "bromide" for a typed pool name (DEC-M3-088)
 //   op "assets":       free, paid, red, notes   (white tickets: the local import keeps the latest value)
+//   op "future_cap":   key, pulls | null (8.14)
+//   1.3 op "training_complete": queue, ref_id, target (oil: the target the phone saw),
+//                      grind_to (grind: the count after this press) (8.18, DEC-M12-036)
 // File name: <YYYYMMDD-HHMMSS-mmm>-<op>-<first 8 of uid>.json, so name order = time order.
 
-export const INBOX_VERSION = '1.2';
+export const INBOX_VERSION = '1.3';   // 1.3: training_complete (DEC-M12-036)
 export const SNAPSHOT_MAJOR = 1;
 export const STONES_PER_PULL = 500;
 const NO_END_WINDOW_DAYS = 14;
@@ -115,6 +118,7 @@ export function buildModel(snap, inbox) {
     const assets = (snap.ledger.assets || []).map(a => ({ ...a, pending: false }));
     const orphans = [];
     const futureCaps = new Map();   // 未來視 caps changed on this phone, not imported yet (8.14)
+    const trainingDone = new Map();  // `${queue}:${ref_id}` -> [{file, grind_to}] completed on this phone (8.18)
     const known = new Set([...records.values()].flatMap(r => r.steps.map(s => s.uid)));
     for (const a of assets) known.add(a.uid);
 
@@ -134,6 +138,9 @@ export function buildModel(snap, inbox) {
             if (!rec) { orphans.push(file); continue; }
             rec.steps.push(normalizeStep(op, { pending: true, file: file.name }));
             if (op.kind === 'end') rec.status = 'closed';
+        } else if (op.op === 'training_complete') {
+            const key = `${op.queue}:${op.ref_id}`;
+            trainingDone.set(key, [...(trainingDone.get(key) || []), { file: file.name, grind_to: op.grind_to ?? null }]);
         } else if (op.op === 'future_cap') {
             futureCaps.set(op.key, { pulls: op.pulls ?? null, file: file.name, at: op.created_at });
         } else if (op.op === 'assets') {
@@ -151,7 +158,7 @@ export function buildModel(snap, inbox) {
     }
     const list = [...records.values()].sort((a, b) =>
         (b.date || '').localeCompare(a.date || '') || (b.created_at || '').localeCompare(a.created_at || ''));
-    return { girls, suits, pools, owned, awakened, wish, records, list, assets, orphans, futureCaps,
+    return { girls, suits, pools, owned, awakened, wish, records, list, assets, orphans, futureCaps, trainingDone,
              latest: latestResources(records, assets) };
 }
 

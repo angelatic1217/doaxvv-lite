@@ -3,6 +3,7 @@
 import { DATA_FILES, SourceError, loadConfig, loadExtra, loadInbox, loadSnapshot, makeSource, saveConfig } from './data.js';
 import { renderCatalog, renderTimeline, resetBrowse, setup as setupBrowse, showPost } from './browse.js';
 import { nextWishHtml, renderFuture, setup as setupFuture } from './future.js';
+import { renderTraining, setup as setupTraining } from './training.js';
 import {
     buildModel, checkCounts, girlsInOrder, inboxFileName, makeOp, openRecordFor, poolsOn, previewStep, searchSuits, suitsOfGirl,
     today, undoableStep,
@@ -57,6 +58,8 @@ async function load() {
         app.model = buildModel(app.snap, app.inbox);
         // 未來視 (snapshot 1.3); an older snapshot simply has none
         app.future = app.snap.manifest.files?.['future.json'] ? await loadExtra(app.source, app.snap.manifest, 'future.json') : null;
+        // 培育 (snapshot 1.6, 8.18)
+        app.training = app.snap.manifest.files?.['training.json'] ? await loadExtra(app.source, app.snap.manifest, 'training.json') : null;
         resetBrowse();
     } catch (e) {
         app.error = e;
@@ -145,6 +148,7 @@ function render() {
     if (hash === '#/future') return renderFuture();
     if (hash.startsWith('#/future/')) return renderFuture(decodeURIComponent(hash.slice(9)));
     if (hash === '#/catalog') return renderCatalog();
+    if (hash === '#/training') return renderTraining();
     if (hash.startsWith('#/rec/')) return renderRecord(decodeURIComponent(hash.slice(6)));
     return renderHome();
 }
@@ -749,6 +753,7 @@ function startRecordFor(newsKey) {
 
 setupBrowse({ app, view, esc, imgHtml, avatarHtml, startRecordFor, hasOpenRecord: k => Boolean(openRecordFor(app.model, k)) });
 setupFuture({ app, view, esc, imgHtml, toast, writeOp, showPost });
+setupTraining({ app, view, esc, imgHtml, avatarHtml, toast, writeOp, removeFile });
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
